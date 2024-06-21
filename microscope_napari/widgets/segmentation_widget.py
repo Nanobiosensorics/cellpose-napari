@@ -13,6 +13,8 @@ from napari.layers import Image, Shapes
 from magicgui import magicgui
 import sys
 
+from microscope_napari.utils import CP_STRINGS, MAIN_CHANNEL_CHOICES, OPTIONAL_NUCLEAR_CHANNEL_CHOICES
+
 # initialize logger
 # use -v or --verbose when starting napari to increase verbosity
 logger = logging.getLogger(__name__)
@@ -35,14 +37,6 @@ def read_logging(log_file, logwindow):
                 logwindow.cursor.movePosition(logwindow.cursor.End)
                 logwindow.cursor.insertText(line)
                 yield line
-            
-main_channel_choices = [('average all channels', 0), ('0=red', 1), ('1=green', 2), ('2=blue', 3),
-                        ('3', 4), ('4', 5), ('5', 6), ('6', 7), ('7', 8), ('8', 9)]
-optional_nuclear_channel_choices = [('none', 0), ('0=red', 1), ('1=green', 2), ('2=blue', 3),
-                                    ('3', 4), ('4', 5), ('5', 6), ('6', 7), ('7', 8), ('8', 9)]
-cp_strings = ['_cp_masks_', '_cp_outlines_', '_cp_flows_', '_cp_cellprob_']
-
-#logo = os.path.join(__file__, 'logo/logo_small.png')
 
 def widget_wrapper():
     from napari.qt.threading import thread_worker
@@ -57,7 +51,7 @@ def widget_wrapper():
     @thread_worker
     @no_grad()
     def run_cellpose(image, model_type, custom_model, channels, channel_axis, diameter,
-                    net_avg, resample, cellprob_threshold, 
+                    resample, cellprob_threshold, 
                     model_match_threshold, do_3D, stitch_threshold):
         from cellpose import models
 
@@ -74,7 +68,6 @@ def widget_wrapper():
                                     channels=channels, 
                                     channel_axis=channel_axis,
                                     diameter=diameter,
-                                    net_avg=net_avg,
                                     resample=resample,
                                     cellprob_threshold=cellprob_threshold,
                                     flow_threshold=flow_threshold,
@@ -125,15 +118,14 @@ def widget_wrapper():
         layout='vertical',
         model_type = dict(widget_type='ComboBox', label='model type', choices=['cyto', 'nuclei', 'cyto2', 'custom'], value='cyto', tooltip='there is a <em>cyto</em> model, a new <em>cyto2</em> model from user submissions, and a <em>nuclei</em> model'),
         custom_model = dict(widget_type='FileEdit', label='custom model path: ', tooltip='if model type is custom, specify file path to it here'),
-        main_channel = dict(widget_type='ComboBox', label='channel to segment', choices=main_channel_choices, value=0, tooltip='choose channel with cells'),
-        optional_nuclear_channel = dict(widget_type='ComboBox', label='optional nuclear channel', choices=optional_nuclear_channel_choices, value=0, tooltip='optional, if available, choose channel with nuclei of cells'),
+        main_channel = dict(widget_type='ComboBox', label='channel to segment', choices=MAIN_CHANNEL_CHOICES, value=0, tooltip='choose channel with cells'),
+        optional_nuclear_channel = dict(widget_type='ComboBox', label='optional nuclear channel', choices=OPTIONAL_NUCLEAR_CHANNEL_CHOICES, value=0, tooltip='optional, if available, choose channel with nuclei of cells'),
         diameter = dict(widget_type='LineEdit', label='diameter', value=30, tooltip='approximate diameter of cells to be segmented'),
         compute_diameter_shape  = dict(widget_type='PushButton', text='compute diameter from shape layer', tooltip='create shape layer with circles and/or squares, select above, and diameter will be estimated from it'),
         compute_diameter_button  = dict(widget_type='PushButton', text='compute diameter from image', tooltip='cellpose model will estimate diameter from image using specified channels'),
         cellprob_threshold = dict(widget_type='FloatSlider', name='cellprob_threshold', value=0.0, min=-8.0, max=8.0, step=0.2, tooltip='cell probability threshold (set lower to get more cells and larger cells)'),
         model_match_threshold = dict(widget_type='FloatSlider', name='model_match_threshold', value=27.0, min=0.0, max=30.0, step=0.2, tooltip='threshold on gradient match to accept a mask (set lower to get more cells)'),
         compute_masks_button  = dict(widget_type='PushButton', text='recompute last masks with new cellprob + model match', enabled=False),
-        net_average = dict(widget_type='CheckBox', text='average 4 nets', value=True, tooltip='average 4 different fit networks (default) or if not checked run only 1 network (fast)'),
         resample_dynamics = dict(widget_type='CheckBox', text='resample dynamics', value=False, tooltip='if False, mask estimation with dynamics run on resized image with diameter=30; if True, flows are resized to original image size before dynamics and mask estimation (turn on for more smooth masks)'),
         process_3D = dict(widget_type='CheckBox', text='process stack as 3D', value=False, tooltip='use default 3D processing where flows in X, Y, and Z are computed and dynamics run in 3D to create masks'),
         stitch_threshold_3D = dict(widget_type='LineEdit', label='stitch threshold slices', value=0, tooltip='across time or Z, stitch together masks with IoU threshold of "stitch threshold" to create 3D segmentation'),
@@ -155,7 +147,6 @@ def widget_wrapper():
         cellprob_threshold,
         model_match_threshold,
         compute_masks_button,
-        net_average,
         resample_dynamics,
         process_3D,
         stitch_threshold_3D,
@@ -171,7 +162,7 @@ def widget_wrapper():
         if clear_previous_segmentations:
             layer_names = [layer.name for layer in viewer.layers]
             for layer_name in layer_names:
-                if any([cp_string in layer_name for cp_string in cp_strings]):
+                if any([cp_string in layer_name for cp_string in CP_STRINGS]):
                     viewer.layers.remove(viewer.layers[layer_name])
             widget.cellpose_layers = []
 
@@ -256,7 +247,6 @@ def widget_wrapper():
                                             max(0, optional_nuclear_channel)],
                                 channel_axis=widget.channel_axis, 
                                 diameter=float(diameter),
-                                net_avg=net_average,
                                 resample=resample_dynamics,
                                 cellprob_threshold=cellprob_threshold,
                                 model_match_threshold=model_match_threshold,
@@ -332,6 +322,5 @@ def widget_wrapper():
 
 @napari_hook_implementation
 def napari_experimental_provide_dock_widget():
-    return widget_wrapper, {'name': 'cellpose'}
-
+    return widget_wrapper, {'name': 'cellpose segmentation'}
 
