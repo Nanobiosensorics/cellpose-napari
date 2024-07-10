@@ -35,7 +35,27 @@ For further information make sure to check out ![cellpose](https://github.com/Mo
 
 ## Cell counting
 
-Cells can be counted in images with custom cellpose models. Multiple samples can be provided as input, the results can be exported as csv.
-Thresholds can be used to fine-tune cellpose dynamics and get better results.
+Cell counts in pictures can be obtained with cellpose models and average intensity regression models.
+Any number of napari image layers can be selected to be evaluated.
 
-![kép](https://github.com/Nanobiosensorics/microscope-napari/assets/65455148/d4803e93-127a-413b-b96f-0ccf5cdd8408)
+### Cellpose model
+
+Without enabling regression model counting the default used method is cellpose segmenting.
+The lower settings are for cellpose only.
+
+Cell outlines can be output to verify the accuracy of results.
+
+Our custom cellpose models can be accessed [there](https://drive.google.com/drive/folders/1-2SRK_AIlcSODebPoigKA7kbn5cb5s2o?usp=sharing).
+
+![kép](https://github.com/Nanobiosensorics/microscope-napari/assets/65455148/4b380ad4-bb7a-46a3-a821-fd7386bdd959)
+
+### Average intensity regression model
+
+For these models we should enable the regression model counting feature.
+The lower settings are irrelevant now, cell outlines will not be output.
+It is only used for counting cells in images.
+
+Our regression models can be accessed [there](https://drive.google.com/drive/folders/1-5uAXN1W5lbE2Pw6Tsa1lR5BYqmPgdEP?usp=sharing).
+
+![kép](https://github.com/Nanobiosensorics/microscope-napari/assets/65455148/3b256da5-7eca-4d4a-a075-175502fbfb1e)
+
