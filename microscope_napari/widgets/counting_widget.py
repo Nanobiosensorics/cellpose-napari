@@ -37,7 +37,7 @@ def widget_wrapper():
         cellprob_threshold=cellprob_threshold
      )
 
-     return np.array(masks), [np.max(mask) for mask in masks]
+     return masks, [np.max(mask) for mask in masks]
   
   @thread_worker()
   def get_cell_counts_regression(images, model_path):
@@ -105,7 +105,11 @@ def widget_wrapper():
 
         masks, cell_counts = result
         if output_outlines:
-          show_outlines(masks_to_outlines(masks) * masks)
+          outlines = []
+          for mask in masks:
+            mask = np.array(mask)
+            outlines.append(masks_to_outlines(mask) * mask)
+          show_outlines(outlines)
         show_table(cell_counts)
       
       def regression_calculation_finished_callback(result):
