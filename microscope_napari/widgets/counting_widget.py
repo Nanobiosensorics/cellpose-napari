@@ -1,5 +1,3 @@
-import numpy as np
-import cv2
 from typing import List
 
 from magicgui import magicgui
@@ -8,56 +6,12 @@ from napari import Viewer
 from napari.layers import Image
 from napari_plugin_engine import napari_hook_implementation
 
-from microscope_napari.utils import create_table_with_csv_export, MAIN_CHANNEL_CHOICES, OPTIONAL_NUCLEAR_CHANNEL_CHOICES, CP_STRINGS
-
 
 def widget_wrapper():
-  try:
-    from torch import no_grad
-  except ImportError:
-    def no_grad():
-      def _deco(func):
-          return func
-      return _deco
-
-  from napari.qt.threading import thread_worker
-
-  @thread_worker()
-  @no_grad()
-  def get_masks_and_cell_counts_cellpose(images, model_path, channels, cellprob_threshold, model_match_threshold):
-     from cellpose import models
-
-     flow_threshold = (31.0 - model_match_threshold) / 10.
-
-     CP = models.CellposeModel(pretrained_model=model_path, gpu=True)
-     masks, _, _ = CP.eval(
-        images,
-        channels=channels,
-        flow_threshold=flow_threshold,
-        cellprob_threshold=cellprob_threshold
-     )
-
-     return masks, [np.max(mask) for mask in masks]
-  
-  @thread_worker()
-  def get_cell_counts_regression(images, model_path):
-    import pickle
-
-    avg_intensities = []
-    for image in images:
-      if len(image.shape) == 3: # convert to grayscale if necessary
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-      avg_intensities.append(np.mean(image))
-    avg_intensities = np.array(avg_intensities)
-
-    with open(model_path, "rb") as file:
-      result = pickle.load(file)
-    
-    f = lambda x, m, c: m * x + c
-    return np.round(f(avg_intensities, **result["params"])).astype(int)
+  from microscope_napari.workers import get_masks_and_cell_counts_cellpose, get_cell_counts_regression
+  from microscope_napari.utils import create_table_with_csv_export, MAIN_CHANNEL_CHOICES, OPTIONAL_NUCLEAR_CHANNEL_CHOICES, CP_STRINGS
   
   @magicgui(
-    call_button='get counts',
     layout='vertical',
     selected_image_layers = dict(widget_type="ListEdit", label="choose image layers", layout="vertical", annotation=List[Image]),
     model_path = dict(widget_type='FileEdit', label='model path: ', tooltip='specify model path here'),
@@ -66,8 +20,9 @@ def widget_wrapper():
     optional_nuclear_channel = dict(widget_type='ComboBox', label='optional nuclear channel', choices=OPTIONAL_NUCLEAR_CHANNEL_CHOICES, value=0, tooltip='optional, if available, choose channel with nuclei of cells'),
     cellprob_threshold = dict(widget_type='FloatSlider', name='cellprob_threshold', value=0.0, min=-8.0, max=8.0, step=0.2, tooltip='cell probability threshold (set lower to get more cells and larger cells)'),
     model_match_threshold = dict(widget_type='FloatSlider', name='model_match_threshold', value=27.0, min=0.0, max=30.0, step=0.2, tooltip='threshold on gradient match to accept a mask (set lower to get more cells)'),
-    output_outlines = dict(widget_type='CheckBox', text='output outlines', value=True),
-    clear_previous_segmentations = dict(widget_type='CheckBox', text='clear previous results', value=True),
+    output_masks = dict(widget_type='CheckBox', text='output masks', value=True),
+    should_clear_previous_results = dict(widget_type='CheckBox', text='clear previous results', value=True),
+    call_button='start calculation'
   )
   def widget(
     viewer: Viewer,
@@ -78,52 +33,81 @@ def widget_wrapper():
     optional_nuclear_channel,
     cellprob_threshold,
     model_match_threshold,
-    output_outlines,
-    clear_previous_segmentations
+    output_masks,
+    should_clear_previous_results
   ):
-      def show_outlines(outlines):
-          for image_layer, outline in zip(selected_image_layers, outlines):
-            print(outline)
-            viewer.add_labels(outline, name=image_layer.name + "_cp_outlines", visible=image_layer.visible, scale=image_layer.scale)
+      # cell counting result widgets (table and export button)
+      if not hasattr(widget, "result_widgets"):
+        widget.result_widgets = []
 
+      # when async calculation starts we disable call button
+      def disable_call_button():
+        widget.call_button.native.setEnabled(False)
+        widget.call_button.native.setText("running...")
+
+      # after async calculation finished call button is enabled again
+      def enable_call_button():
+        widget.call_button.native.setEnabled(True)
+        widget.call_button.native.setText("get counts")
+
+      # adds cellpose masks to the napari viewer
+      def show_masks(masks):
+        for image_layer, mask in zip(selected_image_layers, masks):
+          viewer.add_labels(mask, name=image_layer.name + "_cp_masks", visible=image_layer.visible, scale=image_layer.scale)
+
+      # shows the report table with the cell counts and export
       def show_table(cell_counts):
         table_data = []
         for layer, count in zip(selected_image_layers, cell_counts):
           table_data.append([layer.name, count])
         result_widget = create_table_with_csv_export(["Name", "Cell count"], table_data)
-        viewer.window.add_dock_widget(result_widget, name="cell counting result")
+        widget.result_widgets.append(result_widget)
+        viewer.window.add_dock_widget(result_widget, name="cell counting results")
       
-      def clear_previous():
-        if clear_previous_segmentations:
-          layer_names = [layer.name for layer in viewer.layers]
-          for layer_name in layer_names:
-            if any([cp_string in layer_name for cp_string in CP_STRINGS]):
-              viewer.layers.remove(viewer.layers[layer_name])
+      # clears previous results if necessary
+      def clear_previous_results():
+        if not should_clear_previous_results: return
 
+        # removing result widgets
+        for result_widget in widget.result_widgets:
+          viewer.window.remove_dock_widget(widget=result_widget)
+        widget.result_widgets.clear()
+
+        # removing mask layers
+        layer_names = [layer.name for layer in viewer.layers]
+        for layer_name in layer_names:
+          if any([cp_string in layer_name for cp_string in CP_STRINGS]):
+            viewer.layers.remove(viewer.layers[layer_name])
+
+      # showing results after cellpose finished (table and masks)
       def cellpose_calculation_finished_callback(result):
-        from cellpose.utils import masks_to_outlines
-
         masks, cell_counts = result
-        if output_outlines:
-          outlines = []
-          for mask in masks:
-            mask = np.array(mask)
-            outlines.append(masks_to_outlines(mask) * mask)
-          show_outlines(outlines)
+        enable_call_button()
+        if output_masks:
+          show_masks(masks)
         show_table(cell_counts)
       
+      # showing results when regression finished (table)
       def regression_calculation_finished_callback(result):
+        enable_call_button()
         show_table(result)
 
+      # before starting any calculation we should disable call button
+      disable_call_button()
+
+      # extracting images from the selected napari layers
       images = []
       for layer in selected_image_layers:
         images.append(layer.data)
 
+      # clearing masks and tables if necessary
+      clear_previous_results()
+
+      # running the corresponding calculations
       if use_regression_model:
         cp_worker = get_cell_counts_regression(images, model_path)
         cp_worker.returned.connect(regression_calculation_finished_callback)
       else:
-        clear_previous()
         cp_worker = get_masks_and_cell_counts_cellpose(
           images, str(model_path.resolve()), [max(0, main_channel), max(0, optional_nuclear_channel)],
           cellprob_threshold=cellprob_threshold, model_match_threshold=model_match_threshold)
@@ -136,4 +120,3 @@ def widget_wrapper():
 @napari_hook_implementation()
 def napari_experimental_provide_dock_widget():
     return widget_wrapper, {'name': 'cell counting'}
-

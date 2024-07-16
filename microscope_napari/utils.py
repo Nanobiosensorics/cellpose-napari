@@ -32,7 +32,7 @@ def csv_export_table(table_widget: QTableWidget):
       writer.writerow(row_data)
 
 
-def create_table_with_csv_export(header, data) -> QTableWidget:
+def create_table_with_csv_export(header, data) -> QWidget:
   container_widget = QWidget()
   layout = QVBoxLayout()
   table_widget = QTableWidget()
@@ -46,8 +46,8 @@ def create_table_with_csv_export(header, data) -> QTableWidget:
     for j in range(len(data[i])):
       table_widget.setItem(i, j, QTableWidgetItem(str(data[i][j])))
   
-  layout.addWidget(table_widget)
   layout.addWidget(export_button)
+  layout.addWidget(table_widget)
   
   export_button.clicked.connect(lambda: csv_export_table(table_widget))
 
