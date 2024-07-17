@@ -53,10 +53,6 @@ def export_images_with_masks(image_names, images, masks, opacity):
   for name, image, mask in zip(image_names, images, masks):
     image, mask = np.array(image), np.array(mask)
 
-    # Converting to RGB if necessary
-    if len(image.shape) == 2:
-      image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-
     # Generating colormap for mask
     num_classes = np.max(mask)
     colormap = generate_colormap(num_classes)
@@ -68,7 +64,7 @@ def export_images_with_masks(image_names, images, masks, opacity):
     result_image[blending] = (1 - opacity) * image[blending] + opacity * colormap[mask[blending]]
 
     # Exporting the image
-    export_path = os.path.join(folder, name + ".png")
+    export_path = os.path.join(folder, name + ".jpg")
     cv2.imwrite(export_path, result_image)
 
 

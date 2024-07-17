@@ -1,3 +1,7 @@
+import cv2
+import numpy as np
+import weakref
+
 from typing import List
 
 from magicgui import magicgui
@@ -60,17 +64,18 @@ def widget_wrapper():
         table_data = []
         for layer, count in zip(selected_image_layers, cell_counts):
           table_data.append([layer.name, count])
-        result_widget = create_table_with_exports(["Name", "Cell count"], table_data, images, masks)
-        widget.result_widgets.append(result_widget)
-        viewer.window.add_dock_widget(result_widget, name="cell counting results")
+        dock_widget = create_table_with_exports(["Name", "Cell count"], table_data, images, masks)
+        result_widget = viewer.window.add_dock_widget(dock_widget, name="cell counting results")
+        widget.result_widgets.append(weakref.ref(result_widget))
       
       # clears previous results if necessary
       def clear_previous_results():
         if not should_clear_previous_results: return
 
         # removing result widgets
-        for result_widget in widget.result_widgets:
-          viewer.window.remove_dock_widget(widget=result_widget)
+        for result_widget_ref in widget.result_widgets:
+          if result_widget_ref() != None:
+            viewer.window.remove_dock_widget(widget=result_widget_ref())
         widget.result_widgets.clear()
 
         # removing mask layers
@@ -98,7 +103,13 @@ def widget_wrapper():
       # extracting images from the selected napari layers
       images = []
       for layer in selected_image_layers:
-        images.append(layer.data)
+        image = np.array(layer.data)
+        # convert to RGB if needed
+        if len(image.shape) == 2:
+          image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB) # grayscale
+        elif len(image.shape) == 3 and image.shape[-1] == 4:
+          image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB) # rgba
+        images.append(image)
 
       # clearing masks and tables if necessary
       clear_previous_results()
