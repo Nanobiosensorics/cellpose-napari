@@ -9,7 +9,7 @@ from napari_plugin_engine import napari_hook_implementation
 
 def widget_wrapper():
   from microscope_napari.workers import get_masks_and_cell_counts_cellpose, get_cell_counts_regression
-  from microscope_napari.utils import create_table_with_csv_export, MAIN_CHANNEL_CHOICES, OPTIONAL_NUCLEAR_CHANNEL_CHOICES, CP_STRINGS
+  from microscope_napari.utils import create_table_with_exports, MAIN_CHANNEL_CHOICES, OPTIONAL_NUCLEAR_CHANNEL_CHOICES, CP_STRINGS
   
   @magicgui(
     layout='vertical',
@@ -56,11 +56,11 @@ def widget_wrapper():
           viewer.add_labels(mask, name=image_layer.name + "_cp_masks", visible=image_layer.visible, scale=image_layer.scale)
 
       # shows the report table with the cell counts and export
-      def show_table(cell_counts):
+      def show_table(cell_counts, images=None, masks=None):
         table_data = []
         for layer, count in zip(selected_image_layers, cell_counts):
           table_data.append([layer.name, count])
-        result_widget = create_table_with_csv_export(["Name", "Cell count"], table_data)
+        result_widget = create_table_with_exports(["Name", "Cell count"], table_data, images, masks)
         widget.result_widgets.append(result_widget)
         viewer.window.add_dock_widget(result_widget, name="cell counting results")
       
@@ -85,7 +85,7 @@ def widget_wrapper():
         enable_call_button()
         if output_masks:
           show_masks(masks)
-        show_table(cell_counts)
+        show_table(cell_counts, images, masks)
       
       # showing results when regression finished (table)
       def regression_calculation_finished_callback(result):
