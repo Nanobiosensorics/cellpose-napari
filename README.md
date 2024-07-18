@@ -31,7 +31,7 @@ Images can be segmented with custom and built-in cellpose models.
 
 ![kép](https://github.com/Nanobiosensorics/microscope-napari/assets/65455148/82d300b9-c523-4b0a-bf44-0f3bfdadae07)
 
-For further information make sure to check out ![cellpose](https://github.com/MouseLand/cellpose) and ![cellpose-napari](https://github.com/MouseLand/cellpose-napari) plugin.
+For further information make sure to check out [cellpose](https://github.com/MouseLand/cellpose) and [cellpose-napari](https://github.com/MouseLand/cellpose-napari) plugin.
 
 ## Cell counting
 
@@ -43,19 +43,20 @@ Any number of napari image layers can be selected to be evaluated.
 Without enabling regression model counting the default used method is cellpose segmenting.
 The lower settings are for cellpose only.
 
-Cell outlines can be output to verify the accuracy of results.
+Cell masks can be output to verify the accuracy of results.
 
 Our custom cellpose models can be accessed [there](https://drive.google.com/drive/folders/1-2SRK_AIlcSODebPoigKA7kbn5cb5s2o?usp=sharing).
 
-![kép](https://github.com/Nanobiosensorics/microscope-napari/assets/65455148/4b380ad4-bb7a-46a3-a821-fd7386bdd959)
+![kép](https://github.com/user-attachments/assets/00d1336f-eeb4-4074-87a6-70d9cd866c07)
 
 ### Average intensity regression model
 
 For these models we should enable the regression model counting feature.
-The lower settings are irrelevant now, cell outlines will not be output.
+The lower settings are irrelevant now, cell masks will not be output.
 It is only used for counting cells in images.
 
 Our regression models can be accessed [there](https://drive.google.com/drive/folders/1-5uAXN1W5lbE2Pw6Tsa1lR5BYqmPgdEP?usp=sharing).
 
-![kép](https://github.com/Nanobiosensorics/microscope-napari/assets/65455148/3b256da5-7eca-4d4a-a075-175502fbfb1e)
+![kép](https://github.com/user-attachments/assets/7d733347-ceed-4780-9bea-154c8faf3d4d)
+
 
