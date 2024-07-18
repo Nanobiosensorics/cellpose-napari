@@ -1,5 +1,10 @@
+import numpy as np
 import csv
-from PyQt5.QtWidgets import QWidget, QFileDialog, QTableWidget, QVBoxLayout, QPushButton, QTableWidgetItem
+import cv2
+import os
+
+from magicgui.widgets import FloatSlider
+from PyQt5.QtWidgets import QWidget, QFileDialog, QTableWidget, QVBoxLayout, QPushButton, QTableWidgetItem, QLabel, QHBoxLayout
 
 
 CP_STRINGS = [
@@ -13,6 +18,14 @@ OPTIONAL_NUCLEAR_CHANNEL_CHOICES = [
   ('none', 0), ('0=red', 1), ('1=green', 2), ('2=blue', 3),
   ('3', 4), ('4', 5), ('5', 6), ('6', 7), ('7', 8), ('8', 9)
 ]
+
+
+def generate_colormap(num_classes):
+  colormap = np.zeros((num_classes + 1, 3))
+  colormap[0] = np.zeros(3)
+  for i in range(1, num_classes + 1):
+    colormap[i] = np.random.randint(0, 256, size=3)
+  return colormap
 
 
 def csv_export_table(table_widget: QTableWidget):
@@ -32,12 +45,57 @@ def csv_export_table(table_widget: QTableWidget):
       writer.writerow(row_data)
 
 
-def create_table_with_csv_export(header, data) -> QTableWidget:
-  container_widget = QWidget()
-  layout = QVBoxLayout()
-  table_widget = QTableWidget()
-  export_button = QPushButton("export to csv")
+def export_images_with_masks(image_names, images, masks, opacity):
+  folder = QFileDialog.getExistingDirectory(None, "Select folder")
 
+  if not bool(folder): return
+
+  for name, image, mask in zip(image_names, images, masks):
+    image, mask = np.array(image), np.array(mask)
+
+    # Generating colormap for mask
+    num_classes = np.max(mask)
+    colormap = generate_colormap(num_classes)
+    
+    # Creating the resulting image
+    result_image = np.zeros_like(image)
+    not_blending, blending = (mask == 0, mask != 0)
+    result_image[not_blending] = image[not_blending]
+    result_image[blending] = (1 - opacity) * image[blending] + opacity * colormap[mask[blending]]
+
+    # Exporting the image
+    export_path = os.path.join(folder, name + ".jpg")
+    cv2.imwrite(export_path, result_image)
+
+
+def create_table_with_exports(header, data, images=None, masks=None) -> QWidget:
+  # Csv export button
+  export_csv_button = QPushButton("export to csv")
+  export_csv_button.clicked.connect(lambda: csv_export_table(table_widget))
+
+  # Export masks opacity slider
+  export_masks_opacity = QWidget()
+  export_masks_opacity_layout = QHBoxLayout()
+  export_masks_opacity_label = QLabel("exporting opacity")
+  export_masks_opacity_slider = FloatSlider(min=0.0, max=1.0, step=0.01, value=0.5)
+
+  export_masks_opacity_layout.addWidget(export_masks_opacity_label)
+  export_masks_opacity_layout.addWidget(export_masks_opacity_slider.native)
+  export_masks_opacity.setLayout(export_masks_opacity_layout)
+
+  # Masks export button
+  image_names = [row[0] for row in data]
+  export_masks_button = QPushButton("export masks")
+
+  def export_masks_clicked_callback():
+    export_masks_button.setText("running...")
+    export_images_with_masks(image_names, images, masks, export_masks_opacity_slider.value)
+    export_masks_button.setText("export masks")
+
+  export_masks_button.clicked.connect(export_masks_clicked_callback)
+
+  # Cell counts table
+  table_widget = QTableWidget()
   table_widget.setRowCount(len(data))
   table_widget.setColumnCount(len(header))
   table_widget.setHorizontalHeaderLabels(header)
@@ -46,11 +104,18 @@ def create_table_with_csv_export(header, data) -> QTableWidget:
     for j in range(len(data[i])):
       table_widget.setItem(i, j, QTableWidgetItem(str(data[i][j])))
   
-  layout.addWidget(table_widget)
-  layout.addWidget(export_button)
-  
-  export_button.clicked.connect(lambda: csv_export_table(table_widget))
+  # Layout
+  layout = QVBoxLayout()
 
+  if images != None and masks != None:
+    layout.addWidget(export_masks_opacity)
+    layout.addWidget(export_masks_button)
+  
+  layout.addWidget(export_csv_button)
+  layout.addWidget(table_widget)
+
+  # Container widget
+  container_widget = QWidget()
   container_widget.setLayout(layout)
 
   return container_widget
