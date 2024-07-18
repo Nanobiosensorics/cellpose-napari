@@ -86,7 +86,13 @@ def create_table_with_exports(header, data, images=None, masks=None) -> QWidget:
   # Masks export button
   image_names = [row[0] for row in data]
   export_masks_button = QPushButton("export masks")
-  export_masks_button.clicked.connect(lambda: export_images_with_masks(image_names, images, masks, export_masks_opacity_slider.value))
+
+  def export_masks_clicked_callback():
+    export_masks_button.setText("running...")
+    export_images_with_masks(image_names, images, masks, export_masks_opacity_slider.value)
+    export_masks_button.setText("export masks")
+
+  export_masks_button.clicked.connect(export_masks_clicked_callback)
 
   # Cell counts table
   table_widget = QTableWidget()
