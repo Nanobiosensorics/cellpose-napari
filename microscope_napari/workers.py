@@ -10,6 +10,7 @@ import numpy as np
 import cv2
 
 from napari.qt.threading import thread_worker
+from cellpose import utils
 
 
 @thread_worker()
@@ -46,3 +47,39 @@ def get_cell_counts_regression(images, model_path):
   
   f = lambda x, m, c: m * x + c
   return np.round(f(avg_intensities, **result["params"])).astype(int)
+
+
+@thread_worker()
+def get_cell_areas(image_names, masks):
+    result = {}
+    for name, mask in zip(image_names, masks):
+        mask = np.array(mask)
+        
+        # The area will be the count of each cell id.
+        _, counts = np.unique(mask, return_counts=True)
+
+        # We dont need to store 0, because that is not a valid cell id.
+        areas = counts[1:]
+        result[name] = areas
+    
+    return result
+
+
+@thread_worker()
+def get_cell_perimeters(image_names, masks):
+    result = {}
+    for name, mask in zip(image_names, masks):
+        mask = np.array(mask)
+
+        cell_count = np.max(mask)
+        perimeters = np.zeros(cell_count, dtype=np.uint32)
+
+        # Calculate outlines for each cell.
+        outlines = utils.outlines_list_multi(mask)
+
+        for i in range(cell_count):
+            perimeters[i] = outlines[i].shape[0]
+
+        result[name] = perimeters
+    
+    return result
