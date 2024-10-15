@@ -6,7 +6,7 @@ import pickle
 
 from magicgui.widgets import FloatSlider
 from PyQt5.QtWidgets import QWidget, QFileDialog, QTableWidget, QVBoxLayout, QPushButton, QTableWidgetItem, QLabel, QHBoxLayout
-from microscope_napari.workers import get_cell_areas, get_cell_perimeters
+from microscope_napari.workers import get_cell_shape_info
 
 
 CP_STRINGS = [
@@ -30,7 +30,7 @@ def generate_colormap(num_classes):
   return colormap
 
 
-def csv_export_table(table_widget: QTableWidget):
+def csv_export_table(headers, rows):
   options = QFileDialog.Options()
   file_name, _ = QFileDialog.getSaveFileName(None, "Save CSV", "", "CSV Files (*.csv);;All Files (*)", options=options)
 
@@ -39,12 +39,10 @@ def csv_export_table(table_widget: QTableWidget):
   with open(file_name, mode='w', newline='') as file:
     writer = csv.writer(file, delimiter=";")
 
-    headers = [table_widget.horizontalHeaderItem(i).text() for i in range(table_widget.columnCount())]
     writer.writerow(headers)
 
-    for row in range(table_widget.rowCount()):
-      row_data = [table_widget.item(row, column).text() for column in range(table_widget.columnCount())]
-      writer.writerow(row_data)
+    for row in rows:
+      writer.writerow(row)
 
 
 def export_images_with_masks(image_names, images, masks, opacity):
@@ -83,7 +81,7 @@ def export_pickle(data):
 def create_table_with_exports(header, data, images=None, masks=None) -> QWidget:
   # Csv export button
   export_csv_button = QPushButton("export to csv")
-  export_csv_button.clicked.connect(lambda: csv_export_table(table_widget))
+  export_csv_button.clicked.connect(lambda: csv_export_table(header, data))
 
   # Export masks opacity slider
   export_masks_opacity = QWidget()
@@ -106,29 +104,17 @@ def create_table_with_exports(header, data, images=None, masks=None) -> QWidget:
 
   export_masks_button.clicked.connect(export_masks_clicked_callback)
 
-  # Areas export button
-  export_areas_button = QPushButton("export areas")
+  # Shape export button
+  export_shape_button = QPushButton("export shape info")
 
-  def export_areas_clicked_callback():
-    export_areas_button.setText("running...")
-    worker = get_cell_areas(image_names, masks)
-    worker.returned.connect(export_pickle)
-    worker.returned.connect(lambda _: export_areas_button.setText("export areas"))
+  def export_shape_clicked_callback():
+    export_shape_button.setText("running...")
+    worker = get_cell_shape_info(image_names, masks)
+    worker.returned.connect(lambda result: csv_export_table(["Image name", "Cell Id", "Area", "Perimeter"], result))
+    worker.returned.connect(lambda _: export_shape_button.setText("export shape info"))
     worker.start()
   
-  export_areas_button.clicked.connect(export_areas_clicked_callback)
-
-  # Perimeters export button
-  export_perimeters_button = QPushButton("export perimeters")
-
-  def export_perimeters_clicked_callback():
-    export_perimeters_button.setText("running...")
-    worker = get_cell_perimeters(image_names, masks)
-    worker.returned.connect(export_pickle)
-    worker.returned.connect(lambda _: export_perimeters_button.setText("export perimeters"))
-    worker.start()
-  
-  export_perimeters_button.clicked.connect(export_perimeters_clicked_callback)
+  export_shape_button.clicked.connect(export_shape_clicked_callback)
 
   # Cell counts table
   table_widget = QTableWidget()
@@ -146,8 +132,7 @@ def create_table_with_exports(header, data, images=None, masks=None) -> QWidget:
   if images != None and masks != None:
     layout.addWidget(export_masks_opacity)
     layout.addWidget(export_masks_button)
-    layout.addWidget(export_areas_button)
-    layout.addWidget(export_perimeters_button)
+    layout.addWidget(export_shape_button)
   
   layout.addWidget(export_csv_button)
   layout.addWidget(table_widget)

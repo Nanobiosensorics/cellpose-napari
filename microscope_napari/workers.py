@@ -50,36 +50,25 @@ def get_cell_counts_regression(images, model_path):
 
 
 @thread_worker()
-def get_cell_areas(image_names, masks):
-    result = {}
+def get_cell_shape_info(image_names, masks):
+    result = []
     for name, mask in zip(image_names, masks):
         mask = np.array(mask)
-        
-        # The area will be the count of each cell id.
-        _, counts = np.unique(mask, return_counts=True)
-
-        # We dont need to store 0, because that is not a valid cell id.
-        areas = counts[1:]
-        result[name] = areas
-    
-    return result
-
-
-@thread_worker()
-def get_cell_perimeters(image_names, masks):
-    result = {}
-    for name, mask in zip(image_names, masks):
-        mask = np.array(mask)
-
         cell_count = np.max(mask)
+        
+        # The area will be the count of each cell id (without zero).
+        _, counts = np.unique(mask, return_counts=True)
+        areas = counts[1:]
+
+        # Calculating cell perimeters with cellpose utils.
         perimeters = np.zeros(cell_count, dtype=np.uint32)
-
-        # Calculate outlines for each cell.
         outlines = utils.outlines_list_multi(mask)
-
         for i in range(cell_count):
-            perimeters[i] = outlines[i].shape[0]
+          perimeters[i] = outlines[i].shape[0]
 
-        result[name] = perimeters
+        # Combining the two into results.
+        for i in range(cell_count):
+           result.append([name, i+1, areas[i], perimeters[i]])
     
     return result
+
